@@ -148,7 +148,7 @@ $system_dict.Add("Nintendo Famicom Disk System", "093")
 $system_dict.Add("Nintendo Game & Watch", "00G")
 $system_dict.Add("Nintendo Game Boy", "037")
 $system_dict.Add("Nintendo Game Boy Advance", "074")
-$system_dict.Add("Nintendo Game Boy Color", "069")
+$system_dict.Add("Nintendo Game Boy Color", "gameboy-color")
 $system_dict.Add("Nintendo GameCube", "076")
 $system_dict.Add("Nintendo iQue", "124")
 $system_dict.Add("Nintendo NES / Famicom", "027")
@@ -263,18 +263,18 @@ $system_dict.Add("ZAPiT Game Wave", "144")
 if $CmdLine[0] < 1 Then
 
 	ConsoleWrite("usage: " & $app_name & " ""system"" start_page end_page" & @CRLF)
-	ConsoleWrite("  example: """ & $app_name & """ ""Nintendo SNES / Super Famicom"" 1 3" & @CRLF)
+	ConsoleWrite("  example: """ & $app_name & """ ""Nintendo Game Boy Color"" 1 3" & @CRLF)
 	Exit
 EndIf
 
 
 ; pull all artwork from RF Generation
 
-Local $system = $CmdLine[1] ;"Nintendo SNES / Super Famicom"
+Local $system = $CmdLine[1]  ;"Nintendo Game Boy Color"
 Local $emulator_folder = "D:\dwn\" & StringRegExpReplace(StringRegExpReplace($system, '[:"?*\/<>| ]', "_"), '_+', "_")
 Local $firstresult = 1
 Local $last_page = 1
-Local $results_per_page = 50
+Local $results_per_page = 25
 Local $last_title = ""
 
 if FileExists($emulator_folder) = False Then
@@ -294,32 +294,60 @@ EndIf
 
 for $page_num = $CmdLine[2] to $CmdLine[3]
 
-	Local $iPID = Run('curl.exe -s -k -H "Content-Type: application/x-www-form-urlencoded" --data "console=%7C' & $system_dict.Item($system) & '%7C&title=&genre=&year=&company=&ID=&country=&type=&regionwide=Y&imagesearch=Y&front=Y&back=Y&searchtype=AND&firstresult=' & (1 + (($page_num - 1) * $results_per_page)) & '&search=+Search+" http://www.rfgeneration.com/cgi-bin/search.pl', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+;	Local $iPID = Run('curl.exe -s -k -H "Content-Type: application/x-www-form-urlencoded" --data "console=%7C' & $system_dict.Item($system) & '%7C&title=&genre=&year=&company=&ID=&country=&type=&regionwide=Y&imagesearch=Y&front=Y&back=Y&searchtype=AND&firstresult=' & (1 + (($page_num - 1) * $results_per_page)) & '&search=+Search+" https://www.mobygames.com/browse/games/' & $system_dict.Item($system) & '/list-games/', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+	Local $iPID = Run('curl.exe -s -k -H "Content-Type: application/x-www-form-urlencoded" https://www.mobygames.com/browse/games/' & $system_dict.Item($system) & '/offset,' & (($page_num - 1) * $results_per_page) & '/so,0a/list-games/', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
 	ProcessWaitClose($iPID)
 	Local $html = StdoutRead($iPID)
-	;ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $html = ' & $html & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
-
-	Local $arr = StringRegExp($html, "<td width=30%><a href='getinfo.pl\?ID=(?U)(.*)'>(?U)(.*)</a>", 3)
-	;_ArrayDisplay($arr)
-
+;	ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $html = ' & $html & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
+	Local $arr = StringRegExp($html, "<tr valign=""top""><td><a href=""(?U)(.*)"">(?U)(.*)</a>", 3)
 
 	for $i = 0 to (UBound($arr) - 1) step 2
 
 		$arr[$i + 1] = StringRegExpReplace($arr[$i + 1], '\\|/|:|\*|\?|\"|\<|\>|\|', "")
-
-		ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $arr[$i + 0] = ' & $arr[$i + 0] & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 		ConsoleWrite('@@ Debug(' & @ScriptLineNumber & ') : $arr[$i + 1] = ' & $arr[$i + 1] & @CRLF & '>Error code: ' & @error & @CRLF) ;### Debug Console
 
-		if StringCompare($arr[$i + 1], $last_title, 1) <> 0 or (StringCompare($arr[$i + 1], $last_title, 1) = 0 And StringCompare(StringLeft($arr[$i + 0], 1), "U", 1) = 0) Then
+		Local $iPID = Run('curl.exe -s -k -H "Content-Type: application/x-www-form-urlencoded" ' & $arr[$i + 0] & '/cover-art', @ScriptDir, @SW_HIDE, $STDOUT_CHILD)
+		ProcessWaitClose($iPID)
+		Local $html = StdoutRead($iPID)
 
-			;ConsoleWrite("http://www.rfgeneration.com/images/games/" & StringLeft($arr[$i + 0], 5) & "/bf/" & $arr[$i + 0] & ".jpg => " & $emulator_folder & "\Box\" & $arr[$i + 1] & ".jpg" & @CRLF)
-			;ConsoleWrite("http://www.rfgeneration.com/images/games/" & StringLeft($arr[$i + 0], 5) & "/bb/" & $arr[$i + 0] & ".jpg => " & $emulator_folder & "\BoxBack\" & $arr[$i + 1] & ".jpg" & @CRLF)
+		Local $arr2 = StringRegExp($html, ".*style=""background-image:url\((?U)(.*)\).*></a>      </div>      <div class=""thumbnail-cover-caption"">        <p>Front Cover</p>", 3)
+		Local $arr2_error = @error
+;		Local $arr3 = StringRegExp($html, ".*style=""background-image:url\((?U)(.*)-back-cover.jpg", 3)
+		Local $arr3 = StringRegExp($html, ".*style=""background-image:url\((?U)(.*)\);""></a>      </div>      <div class=""thumbnail-cover-caption"">        <p>Back Cover</p>", 3)
+		Local $arr3_error = @error
 
-			InetGet("http://www.rfgeneration.com/images/games/" & StringLeft($arr[$i + 0], 5) & "/bf/" & $arr[$i + 0] & ".jpg", $emulator_folder & "\Box\" & $arr[$i + 1] & ".jpg")
-			InetGet("http://www.rfgeneration.com/images/games/" & StringLeft($arr[$i + 0], 5) & "/bb/" & $arr[$i + 0] & ".jpg", $emulator_folder & "\BoxBack\" & $arr[$i + 1] & ".jpg")
+		if $arr2_error = 0 and $arr3_error = 0 Then
+
+			ConsoleWrite("Found Front and Back Cover" & @CRLF)
+
+			$arr2[0] = StringReplace($arr2[0], "/images/covers/s/", "/images/covers/l/")
+			InetGet("http://www.mobygames.com" & $arr2[0], $emulator_folder & "\Box\" & $arr[$i + 1] & ".jpg")
+
+			$arr3[0] = StringReplace($arr3[0], "/images/covers/s/", "/images/covers/l/")
+			InetGet("http://www.mobygames.com" & $arr3[0], $emulator_folder & "\BoxBack\" & $arr[$i + 1] & ".jpg")
+		Else
+
+			Local $arr2 = StringRegExp($html, ".*style=""background-image:url\((?U)(.*)\).*></a>      </div>      <div class=""thumbnail-cover-caption"">        <p>Manual<br>Front</p>", 3)
+			Local $arr2_error = @error
+	;		Local $arr3 = StringRegExp($html, ".*style=""background-image:url\((?U)(.*)-back-cover.jpg", 3)
+			Local $arr3 = StringRegExp($html, ".*style=""background-image:url\((?U)(.*)\);""></a>      </div>      <div class=""thumbnail-cover-caption"">        <p>Manual<br>Back</p>", 3)
+			Local $arr3_error = @error
+
+			if $arr2_error = 0 and $arr3_error = 0 Then
+
+				ConsoleWrite("Found Front and Back Manual" & @CRLF)
+
+				$arr2[0] = StringReplace($arr2[0], "/images/covers/s/", "/images/covers/l/")
+				InetGet("http://www.mobygames.com" & $arr2[0], $emulator_folder & "\Box\" & $arr[$i + 1] & ".jpg")
+
+				$arr3[0] = StringReplace($arr3[0], "/images/covers/s/", "/images/covers/l/")
+				InetGet("http://www.mobygames.com" & $arr3[0], $emulator_folder & "\BoxBack\" & $arr[$i + 1] & ".jpg")
+			EndIf
 		EndIf
 
-		$last_title = $arr[$i + 1]
+;		$last_title = $arr[$i + 1]
 	Next
+
+
 Next
 
